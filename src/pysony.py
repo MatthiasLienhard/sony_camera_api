@@ -181,7 +181,7 @@ def common_header(data):
 
 def payload_header(data, payload_type=None):
     if payload_type==None:
-        payload_type=1	# Assume JPEG
+        payload_type=1  # Assume JPEG
 
     start_code,jpeg_data_size_2,jpeg_data_size_1,jpeg_data_size_0,padding_size = unpack_from('!IBBBB',data)
     if start_code != 607479929:
@@ -331,14 +331,22 @@ class SonyAPI():
             self.lv_url = url
             self._lilo_head_pool = LifoQueue()
             self._lilo_jpeg_pool = LifoQueue()
-
+            self._stop_event = threading.Event()
             self.header = None
             self.frameinfo = []
+            self.daemon=True
+
+        def stop(self):
+            self._stop_event.set()
+
+        def is_active(self):
+            return not self._stop_event.is_set()
 
         def run(self):
+            print("starting live view thread")
             sess = urlopen(self.lv_url)
-
-            while True:
+            self._stop_event.clear()
+            while self.is_active():
                 try:
                     header = sess.read(8)
                     ch = common_header(header)
@@ -363,6 +371,9 @@ class SonyAPI():
                     sess.read(payload['padding_size'])
                 except Exception as e:
                     print("[ERROR]" + str(e))
+                    raise # for some exceptions may be better to stop thread
+            print("leaving live view thread")
+                    
 
         def get_header(self):
             if not self.header:
